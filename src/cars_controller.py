@@ -3,21 +3,25 @@ import requests
 import re
 
 AWESOME_CARS_JS = "https://awesomecars.neocities.org/search.js"
+ALL_CARS_JSON = "data/all_cars.json"
+CARS_MP4_FOLDER_PATH = "data/cars/cars_mp4"
+CARS_MP3_FOLDER_PATH = "data/cars/cars_mp3"
 
 
 def get_all_cars():
-    with open("./data/all_cars.json") as file:
+    with open(ALL_CARS_JSON) as file:
         all_cars = json.load(file)
         return all_cars
 
 
-def get_car_path_by_id(index):
-    car_path = f"https://awesomecars.neocities.org/ver2/{index}.mp4"
+def get_car_mp4_path_by_id(car_id):
+    car_path = f"{CARS_MP4_FOLDER_PATH}/{car_id}.mp4"
     return car_path
 
 
-def get_secret_car_path():
-    return "data/output/rusi.mp4"
+def get_car_mp3_path_by_id(car_id):
+    car_path = f"{CARS_MP3_FOLDER_PATH}/{car_id}.mp3"
+    return car_path
 
 
 def get_len():

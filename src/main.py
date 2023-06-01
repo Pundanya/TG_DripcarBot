@@ -19,8 +19,8 @@ LOADING_MESSAGE = "🚦 Loading..."
 
 ERROR_NOT_WORKING_MESSAGE = 'Not working yet'
 ERROR_CAR_NOT_EXIST_MESSAGE = "Car doesn't exist. Try again!"
-
-MAX_AUDIO_SIZE_MB = 10
+ERROR_AUDIO_TOO_BIG = f"Audio too big. Maximum size: {bot_controller.MAX_AUDIO_SIZE_MB} MB."
+ERROR = "Error"
 
 dp = bot_tg.get_dp()
 bot = bot_tg.get_bot()
@@ -33,8 +33,8 @@ class SearchOrder(StatesGroup):
 
 
 @dp.errors_handler()
-async def error_handler(update: types.Update, exception: Exception):
-    print(f'Ошибка обновления: {exception}')
+async def error_handler(exception: Exception):
+    print(f'{ERROR}: {exception}')
 
 
 # --- Command START ---
@@ -88,13 +88,7 @@ async def search(message: types.Message):
 
 @dp.message_handler(content_types=types.ContentType.PHOTO, state=SearchOrder.waiting_for_logo)
 async def process_logo_image(message: types.Message, state: FSMContext):
-    logo_image = message.photo[-1]
-
-    chat_id = message.chat.id
-    logo_image_path = f"data/constructor/images/logo_{chat_id}.jpg"
-
-    await logo_image.download(destination_file=logo_image_path)
-
+    await bot_controller.download_logo_image(message)
     await state.set_state(SearchOrder.waiting_for_audio)
     await bot.send_message(message.chat.id, CONSTRUCTOR_AUDIO_ASK_MESSAGE, reply_markup=markups.constructor_menu)
 
@@ -105,34 +99,14 @@ async def handle_invalid_logo_image(message: types.Message):
 
 
 @dp.message_handler(content_types=[types.ContentType.AUDIO, types.ContentType.VOICE], state=SearchOrder.waiting_for_audio)
-async def process_audio_and_make_video(message: types.Message, state: FSMContext):
+async def process_audio_and_video(message: types.Message, state: FSMContext):
     loading_message = await bot.send_message(message.chat.id, LOADING_MESSAGE)
-    if message.audio:
-        file_id = message.audio.file_id
-        file_size_mb = message.audio.file_size / (1024 * 1024)
-    else:
-        file_id = message.voice.file_id
-        file_size_mb = message.voice.file_size / (1024 * 1024)
-
-    if file_size_mb > MAX_AUDIO_SIZE_MB:
-        await message.reply(f"Audio too big. Maximum size: {MAX_AUDIO_SIZE_MB} MB.")
-        return
-
-    file = await bot.get_file(file_id)
-    file_path = file.file_path
-    file_extension = re.search(r'\.(\w+)$', file_path).group(1)
-
-    chat_id = message.chat.id
-    audio_path = f"data/constructor/audios/audio_{chat_id}.{file_extension}"
-
-    await bot.download_file(file_path, audio_path)
-
-    logo_path_by_id = f"data/constructor/images/logo_{chat_id}.jpg"
-    video_path = converter.create_car_video_from_logo_and_audio(logo_path_by_id, audio_path, chat_id)
-    await state.finish()
-    result_car_mp4 = types.InputFile(video_path)
-
+    result_car_mp4 = await bot_controller.process_audio_and_video(message)
     await bot.delete_message(message.chat.id, loading_message.message_id)
+    if result_car_mp4 is None:
+        await message.reply(ERROR_AUDIO_TOO_BIG)
+        return
+    await state.finish()
     await bot.send_video_note(message.chat.id, result_car_mp4, reply_markup=markups.main_menu)
 
 

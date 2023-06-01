@@ -5,12 +5,52 @@ import cars_controller
 import converter
 import markups
 import os.path
+import re
 
 from aiogram import types
 
+LOGO_FOLDER_PATH = "data/constructor/images"
+AUDIO_FOLDER_PATH = "data/constructor/audios"
+
+MAX_AUDIO_SIZE_MB = 3
 
 bot = bot_tg.get_bot()
 all_cars = cars_controller.get_all_cars()
+
+
+async def download_logo_image(message):
+    logo_image = message.photo[-1]
+
+    chat_id = message.chat.id
+    logo_image_path = f"{LOGO_FOLDER_PATH}/logo_{chat_id}.jpg"
+    await logo_image.download(destination_file=logo_image_path)
+
+
+async def process_audio_and_video(message):
+    if message.audio:
+        file_id = message.audio.file_id
+        file_size_mb = message.audio.file_size / (1024 * 1024)
+    else:
+        file_id = message.voice.file_id
+        file_size_mb = message.voice.file_size / (1024 * 1024)
+
+    if file_size_mb > MAX_AUDIO_SIZE_MB:
+        return None
+
+    file = await bot.get_file(file_id)
+    file_path = file.file_path
+    file_extension = re.search(r'\.(\w+)$', file_path).group(1)
+
+    chat_id = message.chat.id
+    audio_path = f"{AUDIO_FOLDER_PATH}/audio_{chat_id}.{file_extension}"
+
+    await bot.download_file(file_path, audio_path)
+
+    logo_path_by_id = f"{LOGO_FOLDER_PATH}/logo_{chat_id}.jpg"
+    video_path = converter.create_car_video_from_logo_and_audio(logo_path_by_id, audio_path, chat_id)
+
+    result_car_mp4 = types.InputFile(video_path)
+    return result_car_mp4
 
 
 async def get_random_car(message):

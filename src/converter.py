@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 
+CONSTRUCTOR_RESULT_PATH = "data/constructor/result/car_video"
 
 # old
 def resize_car_mp4(input_file):
@@ -72,15 +73,15 @@ def logo_place_on_car_image(logo_path, chat_id):
 
 def create_car_video_from_logo_and_audio(logo_path, audio_path, chat_id):
     car_image_path = logo_place_on_car_image(logo_path, chat_id)
-    output_file_path = f"data/constructor/result/car_video/car_{chat_id}.mp4"
+    output_file_path = f"{CONSTRUCTOR_RESULT_PATH}/car_{chat_id}.mp4"
 
-    desired_duration = 25
+    desired_duration = 20
     duration = float(subprocess.check_output(
         ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
          audio_path]))
     duration = min(duration, desired_duration)
 
-    command = ['ffmpeg', '-loop', '1', '-i', car_image_path, '-i', audio_path, "-s", "240x240", "-y", '-t', str(duration), '-preset', 'superfast','-crf', '30', '-c:v', 'libx265', output_file_path]
+    command = ['ffmpeg', '-loop', '1', '-i', car_image_path, '-i', audio_path, "-s", "240x240", "-y", '-t', str(duration), '-preset', 'superfast', '-crf', '30', '-c:v', 'libx265', output_file_path]
 
     subprocess.call(command)
 

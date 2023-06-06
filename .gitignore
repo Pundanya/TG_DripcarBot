@@ -2,3 +2,11 @@
 /data/cars/cars_mp4/
 /data/constructor/result/car_images/
 /data/constructor/result/car_video/
+/data/cars/.minio.sys/
+/data/cars/miniocars/
+/data/constructor/audios/
+/data/constructor/images/
+/data/constructor/result/
+/data/temp/cars_mp3/
+/data/temp/cars_mp4/
+/src/minio/

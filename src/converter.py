@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 
 CONSTRUCTOR_RESULT_PATH = "data/constructor/result/car_video"
 
+
 # old
 def resize_car_mp4(input_file):
     output_file = ''

@@ -121,3 +121,36 @@ async def init_models():
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
+
+async def add_like(car_id):
+    async with async_session() as session:
+        car = await session.execute(select(CarStats).filter(CarStats.id == car_id))
+        car = car.scalars().first()
+        car.likes += 1
+        await session.merge(car)
+        await session.commit()
+
+
+async def add_dislike(car_id):
+    async with async_session() as session:
+        car = await session.execute(select(CarStats).filter(CarStats.id == car_id))
+        car = car.scalars().first()
+        car.dislikes += 1
+        await session.merge(car)
+        await session.commit()
+
+
+async def add_views(car_id):
+    async with async_session() as session:
+        car = await session.execute(select(CarStats).filter(CarStats.id == car_id))
+        car = car.scalars().first()
+        car.views += 1
+        await session.merge(car)
+        await session.commit()
+
+
+async def get_stats(car_id):
+    async with async_session() as session:
+        car = await session.execute(select(CarStats).filter(CarStats.id == car_id))
+        car = car.scalars().first()
+        return car.likes, car.dislikes, car.views

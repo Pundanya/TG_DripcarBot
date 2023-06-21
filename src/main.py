@@ -3,6 +3,7 @@ import bot_controller
 import markups
 import db_controller
 import s3_client
+import re
 import os
 
 from aiogram import types
@@ -13,7 +14,7 @@ from aiogram.dispatcher import FSMContext
 START_MESSAGE = 'Hello! Drip car bot at your service'
 MAIN_MENU_MESSAGE = 'Press "🔍 Car search" to search the car\nPress "🎲 Random car" to get random car'
 SEARCH_HINT_MESSAGE = 'To search enter car name into chat'
-INFO_MESSAGE = 'Constructor version 2. Now your cars can be searched!'
+INFO_MESSAGE = 'Constructor version 3. Now your cars can be searched! Sound can be cropped and added music on background.'
 CONSTRUCTOR_CAR_CHECK_MESSAGE = "Enter the name of the car to search for similar ones in the database"
 CONSTRUCTOR_FOUND_CARS_CHECK_MESSAGE = "Here are some similar cars. Check if your car is already in the database"
 CONSTRUCTOR_CONTINUE_REPEAT_ASK_MESSAGE = f'If your car does not already exist press {markups.BUTTON_CONTINUE_TEXT}.' \
@@ -24,6 +25,18 @@ CONSTRUCTOR_NAME_ASK_MESSAGE = "Please send car name"
 CONSTRUCTOR_LOGO_ASK_MESSAGE = "Please send logo image"
 CONSTRUCTOR_AUDIO_ASK_MESSAGE = "Please send audio"
 CONSTRUCTOR_SUCCESS_MESSAGE = "Success! Your car added"
+CONSTRUCTOR_AUDIO_CUT_START_TIME_ASK_MESSAGE = "Please send start time." \
+                                               "\nFormat: " \
+                                               "\n\nmm:ss\n" \
+                                               "\nExample: 01:23"
+CONSTRUCTOR_AUDIO_CUT_END_TIME_ASK_MESSAGE = "Please send duration time is seconds. Maximum 20 seconds" \
+                                             "\nFormat:" \
+                                             "\n\nss\n" \
+                                             "\nExample: 15"
+CONSTRUCTOR_YOUR_AUDIO_MESSAGE = "Your audio:"
+CONSTRUCTOR_MUSIC_ASK_MESSAGE = "Please send music or choose from samples"
+CONSTRUCTOR_YOUR_MUSIC_MESSAGE = "Your music:"
+CONSTRUCTOR_MUSIC_SAMPLES_MESSAGE = "You can choose from this samples:"
 
 LOADING_MESSAGE = "🚦 Loading..."
 SUCCESS_MESSAGE = "SUCCESS!"
@@ -43,6 +56,15 @@ class States(StatesGroup):
     waiting_for_search_name = State()
     waiting_for_logo = State()
     waiting_for_audio = State()
+    audio_edit = State()
+    audio_cut_start = State()
+    audio_cut_end = State()
+    audio_waiting_for_music = State()
+    music_samples = State()
+    music_edit = State()
+    music_cut_start = State()
+    music_cut_end = State()
+    waiting_for_time = State()
     waiting_for_accept = State()
     waiting_for_name = State()
     subscription_edit = State()
@@ -73,6 +95,13 @@ async def start_command(message: types.Message):
     await bot.send_message(message.chat.id, SUCCESS_MESSAGE + " Now u r an admin", reply_markup=markups.main_menu)
 
 
+@dp.message_handler(lambda c: c.text == markups.BUTTON_MAIN_MENU_TEXT, state="*")
+async def main_menu_button(message: types.Message, state: FSMContext):
+    await bot_controller.delete_constructor_src(message.chat.id)
+    await state.finish()
+    await bot.send_message(message.chat.id, MAIN_MENU_MESSAGE, reply_markup=markups.main_menu)
+
+
 # --- Main message HANDLER ---
 @dp.message_handler()
 async def input_handler(message: types.Message, state: FSMContext):
@@ -97,15 +126,13 @@ async def input_handler(message: types.Message, state: FSMContext):
     #     for car_id, car_name in bot_controller.all_cars.items():
     #         await db_controller.add_car(car_name, 000000000, "awesomecars", car_id)
 
+    # elif message.text == markups.BUTTON_TEST_TEXT:
+    #     await bot_controller.distort_audio()
+
+
     else:
         await bot.send_message(message.chat.id, MAIN_MENU_MESSAGE,
                                reply_markup=markups.main_menu)
-
-
-@dp.message_handler(lambda c: c.text == markups.BUTTON_MAIN_MENU_TEXT, state="*")
-async def main_menu_button(message: types.Message, state: FSMContext):
-    await state.finish()
-    await bot.send_message(message.chat.id, MAIN_MENU_MESSAGE, reply_markup=markups.main_menu)
 
 
 @dp.message_handler(state=States.searching)
@@ -164,17 +191,106 @@ async def handle_invalid_logo_image(message: types.Message):
 async def process_audio_and_video(message: types.Message, state: FSMContext):
     loading_message = await bot.send_message(message.chat.id, LOADING_MESSAGE)
 
-    audio_path = await bot_controller.create_audio(message)
+    audio_path = await bot_controller.create_audio(message, "audio")
+    await bot_controller.normalize_audio(message, "audio")
     await bot.delete_message(message.chat.id, loading_message.message_id)
     if not audio_path:
         await message.reply(ERROR_AUDIO_TOO_BIG)
         return
 
-    result_car_mp4 = await bot_controller.create_video(message.chat.id, audio_path)
+    await state.set_state(States.audio_edit)
+    await constructor_send_audio(message.from_user.id, audio_path)
 
-    await state.set_state(States.waiting_for_accept)
-    await bot.send_video_note(message.chat.id, result_car_mp4)
-    await bot.send_message(message.chat.id, CONSTRUCTOR_CAR_ACCEPT_MESSAGE, reply_markup=markups.inline_continue_repeat_buttons)
+
+@dp.message_handler(state=States.audio_edit)
+async def audio_edit(message: types.Message, state: FSMContext):
+    if message.text == markups.BUTTON_CUT_TEXT:
+        await state.set_state(States.audio_cut_start)
+        await bot.send_message(message.from_user.id, CONSTRUCTOR_AUDIO_CUT_START_TIME_ASK_MESSAGE)
+    elif message.text == markups.BUTTON_MUSIC_TEXT:
+        await state.set_state(States.music_edit)
+        await bot.send_message(message.from_user.id, CONSTRUCTOR_MUSIC_ASK_MESSAGE, reply_markup=markups.music_edit_menu)
+    elif message.text == markups.BUTTON_CONTINUE_TEXT:
+        await state.set_state(States.waiting_for_accept)
+        audio_path = await bot_controller.get_audio_path(message)
+        result_car_mp4 = await bot_controller.create_video(message.chat.id, audio_path)
+        await bot.send_video_note(message.chat.id, result_car_mp4)
+        await bot.send_message(message.chat.id, CONSTRUCTOR_CAR_ACCEPT_MESSAGE, reply_markup=markups.inline_continue_repeat_buttons)
+
+
+@dp.message_handler(content_types=[types.ContentType.AUDIO, types.ContentType.VOICE], state=States.music_edit)
+async def music_process(message: types.Message, state: FSMContext):
+    loading_message = await bot.send_message(message.chat.id, LOADING_MESSAGE)
+
+    audio_path = await bot_controller.create_audio(message, "music")
+    await bot.delete_message(message.chat.id, loading_message.message_id)
+    if not audio_path:
+        await message.reply(ERROR_AUDIO_TOO_BIG)
+        return
+
+    await bot_controller.audio_mix(message, audio_path)
+    await constructor_send_music(message.from_user.id, audio_path)
+
+
+@dp.message_handler(state=States.music_edit)
+async def music_edit(message: types.Message, state: FSMContext):
+    if message.text == markups.BUTTON_CUT_TEXT:
+        if os.path.exists(f"data/constructor/audios/music/music_{message.from_user.id}.mp3"):
+            await state.set_state(States.music_edit)
+            await bot.send_message(message.from_user.id, CONSTRUCTOR_AUDIO_CUT_START_TIME_ASK_MESSAGE)
+        else:
+            await bot.send_message(message.from_user.id, CONSTRUCTOR_MUSIC_ASK_MESSAGE)
+    elif message.text == markups.BUTTON_SAMPLES_TEXT:
+        await bot.send_message(message.from_user.id, CONSTRUCTOR_MUSIC_SAMPLES_MESSAGE, reply_markup=markups.music_edit_menu)
+        await bot_controller.send_samples(message.from_user.id)
+    elif message.text == markups.BUTTON_CONTINUE_TEXT:
+        await state.set_state(States.audio_edit)
+        audio_path = await bot_controller.get_audio_path(message)
+        await constructor_send_audio(message.from_user.id, audio_path)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith(markups.CALLBACK_DATA_BUTTON_MUSIC_SAMPLE), state=States.music_edit)
+async def process_music_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    input_file_2 = f"{bot_controller.MUSIC_SAMPLES_PATH}/{callback_query.data.lstrip(markups.CALLBACK_DATA_BUTTON_MUSIC_SAMPLE)}"
+    await bot_controller.audio_mix(callback_query, input_file_2)
+    audio_path = await bot_controller.get_audio_path(callback_query)
+    await state.set_state(States.audio_edit)
+    await constructor_send_audio(callback_query.from_user.id, audio_path)
+
+
+@dp.message_handler(content_types=types.ContentType.TEXT, state=States.audio_cut_start)
+async def audio_start_cut(message: types.Message, state: FSMContext):
+    pattern = r'^\d{2}:\d{2}$'
+    match = re.match(pattern, message.text)
+    if not match:
+        await message.reply(CONSTRUCTOR_AUDIO_CUT_START_TIME_ASK_MESSAGE)
+        return
+
+    await bot_controller.start_cut_audio(message)
+    await state.set_state(States.audio_cut_end)
+    await bot.send_message(message.from_user.id, CONSTRUCTOR_AUDIO_CUT_END_TIME_ASK_MESSAGE)
+
+
+@dp.message_handler(state=States.audio_cut_start)
+async def handle_invalid_audio_start_cut(message: types.Message):
+    await message.reply(CONSTRUCTOR_AUDIO_CUT_START_TIME_ASK_MESSAGE)
+
+
+@dp.message_handler(content_types=types.ContentType.TEXT, state=States.audio_cut_end)
+async def audio_end_cut(message: types.Message, state: FSMContext):
+    if not message.text.isdecimal():
+        await message.reply(CONSTRUCTOR_AUDIO_CUT_END_TIME_ASK_MESSAGE)
+        return
+
+    await bot_controller.end_cut_audio(message)
+    await state.set_state(States.audio_edit)
+    await constructor_send_audio(message.from_user.id, f"{bot_controller.AUDIO_FOLDER_PATH}/audio_modified_{message.from_user.id}.mp3")
+
+
+@dp.message_handler(state=States.audio_cut_end)
+async def handle_invalid_audio_start_cut(message: types.Message):
+    await message.reply(CONSTRUCTOR_AUDIO_CUT_END_TIME_ASK_MESSAGE)
 
 
 @dp.callback_query_handler(lambda c: c.data == markups.CALLBACK_DATA_BUTTON_CONTINUE, state=States.waiting_for_accept)
@@ -194,14 +310,13 @@ async def process_name_callback_repeat(callback_query: types.CallbackQuery, stat
 
 
 @dp.message_handler(state=States.waiting_for_name)
-async def constructor_car_create(message: types.Message):
+async def constructor_car_create(message: types.Message, state: FSMContext):
     new_car = await db_controller.add_car(message.text, message.from_user.id, "tg_constructor", message.message_id)
     car_name = f"car_{message.from_user.id}"
-    car_path = f"data/constructor/result/car_video/{car_name}.mp4"
     await s3_client.upload_car_mp4(car_name, new_car.id)
-    if os.path.exists(car_path):
-        os.remove(car_path)
     await bot.send_message(message.from_user.id, SUCCESS_MESSAGE)
+    await bot_controller.delete_constructor_src(message.from_user.id)
+    await state.finish()
 
 
 @dp.message_handler(state=States.waiting_for_audio)
@@ -232,16 +347,41 @@ async def send_voice_version_by_inline_button(callback_query: types.CallbackQuer
     await bot_controller.delete_car(car)
 
 
+@dp.callback_query_handler(lambda c: c.data.startswith(markups.CALLBACK_DATA_BUTTON_STATS), state="*")
+async def send_voice_version_by_inline_button(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    button_data = callback_query.data.lstrip(markups.CALLBACK_DATA_BUTTON_STATS)
+    if button_data.startswith(markups.CALLBACK_DATA_BUTTON_LIKE):
+        await db_controller.add_like(button_data.lstrip(markups.CALLBACK_DATA_BUTTON_LIKE))
+    elif button_data.startswith(markups.CALLBACK_DATA_BUTTON_DISLIKE):
+        await db_controller.add_dislike(button_data.lstrip(markups.CALLBACK_DATA_BUTTON_DISLIKE))
+    elif button_data.startswith(markups.CALLBACK_DATA_BUTTON_All_STATS):
+        car_likes, car_dislikes, car_views = await db_controller.get_stats(button_data.lstrip(markups.CALLBACK_DATA_BUTTON_All_STATS))
+        await bot.send_message(callback_query.from_user.id, f"Likes: {car_likes}\n"
+                                                      f"Dislikes: {car_dislikes}\n"
+                                                      f"Views: {car_views}")
+
+
 @dp.callback_query_handler(lambda c: True, state="*")
 async def invalid_state(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    await bot.send_message(callback_query.from_user.id, ERROR_WRONG_STATE)
+    await bot.send_message(callback_query.from_user.id, ERROR_WRONG_STATE + "\n" + callback_query.data)
 
 
 def generate_message_found_cars(found_cars):
     message_header = "Found car:" if len(found_cars) == 1 else "Found cars:"
     message_found_cars = [f"{i + 1}. {car.name}" for i, car in enumerate(found_cars)]
     return "\n".join([message_header, *message_found_cars])
+
+
+async def constructor_send_audio(chat_id, audio_path):
+    await bot.send_message(chat_id, "Your audio:")
+    await bot.send_audio(chat_id, types.InputFile(audio_path), reply_markup=markups.audio_edit_menu)
+
+
+async def constructor_send_music(chat_id, audio_path):
+    await bot.send_message(chat_id, "Your music:")
+    await bot.send_audio(chat_id, types.InputFile(audio_path), reply_markup=markups.music_edit_menu)
 
 
 if __name__ == '__main__':

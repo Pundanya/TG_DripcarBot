@@ -4,18 +4,40 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 
+
 CONSTRUCTOR_RESULT_PATH = "data/constructor/result/car_video"
 
 
-# old
-def resize_car_mp4(input_file):
-    output_file = ''
-    command = ['ffmpeg', '-i', input_file, "-s", "240x240", "-y", output_file]
+async def audio_mix(input_file, input_file_2, output_file):
+    command = ['ffmpeg', '-i', input_file, '-i', input_file_2, "-filter_complex", "amix=inputs=2:duration=longest", "-y", output_file]
     subprocess.call(command)
 
 
 def convert_car_mp4_to_mp3(input_file, output_file):
     command = ['ffmpeg', '-i', input_file, "-y", output_file]
+    subprocess.call(command)
+
+
+async def normalize_audio(input_file, output_file):
+    command = ['ffmpeg', '-i', input_file, "-filter:a", "volume=1.5, lowshelf=g=20", "-y", output_file]
+    subprocess.call(command)
+
+
+def convert_to_mp3(path, file_extension):
+    input_file = path + file_extension
+    output_file = path + "mp3"
+    command = ['ffmpeg', '-i', input_file, "-y", output_file]
+    subprocess.call(command)
+
+
+def cut_start_mp3(input_file, output_file, start_time):
+    command = ['ffmpeg', '-i', input_file, "-ss", f"00:{start_time}", "-y", output_file]
+    subprocess.call(command)
+
+
+def cut_end_mp3(input_file, output_file, audio_time):
+    audio_time = check_duration(audio_time)
+    command = ['ffmpeg', '-i', input_file, "-t", f"00:00:{audio_time}", "-y", output_file]
     subprocess.call(command)
 
 
@@ -76,15 +98,21 @@ def create_car_video_from_logo_and_audio(logo_path, audio_path, chat_id):
     car_image_path = logo_place_on_car_image(logo_path, chat_id)
     output_file_path = f"{CONSTRUCTOR_RESULT_PATH}/car_{chat_id}.mp4"
 
-    desired_duration = 20
+
     duration = float(subprocess.check_output(
         ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
          audio_path]))
-    duration = min(duration, desired_duration)
+    duration = check_duration(duration)
 
     command = ['ffmpeg', '-loop', '1', '-i', car_image_path, '-i', audio_path, "-s", "240x240", "-y", '-t', str(duration), '-preset', 'superfast', '-crf', '30', '-c:v', 'libx265', output_file_path]
 
     subprocess.call(command)
 
     return output_file_path
+
+
+def check_duration(user_duration):
+    desired_duration = 20
+
+    return min(user_duration, desired_duration)
 

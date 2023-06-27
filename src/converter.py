@@ -23,6 +23,16 @@ async def normalize_audio(input_file, output_file):
     subprocess.call(command)
 
 
+async def increase_volume(input_file, output_file):
+    command = ['ffmpeg', '-i', input_file, "-filter:a", "volume=2", "-y", output_file]
+    subprocess.call(command)
+
+
+async def decrease_volume(input_file, output_file):
+    command = ['ffmpeg', '-i', input_file, "-filter:a", "volume=0.5", "-y", output_file]
+    subprocess.call(command)
+
+
 def convert_to_mp3(path, file_extension):
     input_file = path + file_extension
     output_file = path + "mp3"
@@ -42,55 +52,33 @@ def cut_end_mp3(input_file, output_file, audio_time):
 
 
 def logo_place_on_car_image(logo_path, chat_id):
-
     car_template_image = cv2.imread("data/constructor/template/car_template.png")
     logo_image = cv2.imread(logo_path)
 
-    # Преобразование цветового пространства из BGR в HSV
     source_hsv = cv2.cvtColor(car_template_image, cv2.COLOR_BGR2HSV)
     target_hsv = cv2.cvtColor(logo_image, cv2.COLOR_BGR2HSV)
 
-    # Плоский массив пикселей цветового канала Hue в целевом изображении
     hue_pixels = target_hsv[:, :, 0].flatten()
 
-    # Кластерный анализ пикселей цветового канала Hue
     kmeans = KMeans(n_clusters=5, n_init=10)
     kmeans.fit(hue_pixels.reshape(-1, 1))
 
-    # Находим индекс кластера с наибольшим количеством пикселей
     dominant_cluster_index = np.argmax(np.bincount(kmeans.labels_))
-
-    # Находим среднее значение цвета в доминирующем кластере
     dominant_hue = int(kmeans.cluster_centers_[dominant_cluster_index])
 
-    # Копирование исходного изображения для изменения
     modified_image = source_hsv.copy()
-
-    # Изменение значений цветового канала Hue исходного изображения
     modified_image[:, :, 0] = dominant_hue
-
-    # Преобразование обратно в цветовое пространство BGR
     modified_image = cv2.cvtColor(modified_image, cv2.COLOR_HSV2BGR)
-
-    # # Сохранение измененного изображения
-    # cv2.imwrite("output_image.jpg", modified_image)
-
-    # Изменение размера фона до нужного размера
     modified_image = cv2.resize(modified_image, (240, 240))
 
-    # Изменение размера наложения до нужного размера
     logo_image = cv2.resize(logo_image, (60, 60))
 
-    # Наложение изображения на фон в определенном месте
     x = 160
     y = 125
     modified_image[y:y + logo_image.shape[0], x:x + logo_image.shape[1]] = logo_image
 
     car_image_path = f'data/constructor/result/car_images/result_{chat_id}.jpg'
-
-    # Сохранение результата
     cv2.imwrite(car_image_path, modified_image)
-
     return car_image_path
 
 

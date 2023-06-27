@@ -68,11 +68,40 @@ async def get_cars_by_name(car_name):
         return cars
 
 
+async def get_cars_by_tg_id(tg_id):
+    async with async_session() as session:
+        response = await session.execute(select(Car).filter(Car.author_tg_id == tg_id))
+        cars = response.scalars().all()
+        return cars
+
+
 async def get_last_id():
     async with async_session() as session:
         response = await session.execute(select(Car).order_by(Car.id.desc()).limit(1))
         car = response.scalars().first()
         return car.id
+
+
+async def get_stats_by_tg_id(tg_id):
+    cars = await get_cars_by_tg_id(tg_id)
+    likes = 0
+    dislikes = 0
+    views = 0
+    async with async_session() as session:
+        for car in cars:
+            car_stats = await session.execute(select(CarStats).filter(CarStats.id == car.id))
+            car_stats = car_stats.scalars().first()
+            likes = likes + car_stats.likes
+            dislikes = dislikes + car_stats.dislikes
+            views = views + car_stats.views
+    return likes, dislikes, views
+
+
+async def get_top_10_stats_by_likes():
+    async with async_session() as session:
+        response = await session.execute(select(CarStats).order_by(CarStats.likes.desc()).limit(10))
+        cars = response.scalars().all()
+        return cars
 
 
 async def add_car(car_name, author_tg_id, source, source_key=None):
@@ -154,3 +183,17 @@ async def get_stats(car_id):
         car = await session.execute(select(CarStats).filter(CarStats.id == car_id))
         car = car.scalars().first()
         return car.likes, car.dislikes, car.views
+
+
+async def delete_car(car_id):
+    async with async_session() as session:
+        car = await session.execute(select(Car).filter(Car.id == car_id))
+        car = car.scalars().first()
+        await session.delete(car)
+        await session.commit()
+
+
+# async def get_user_stats():
+#     async with async_session() as session:
+#
+#     pass

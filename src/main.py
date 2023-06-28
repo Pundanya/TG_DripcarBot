@@ -6,8 +6,10 @@ import s3_client
 import re
 import os
 import shutil
+import asyncio
 
 
+from datetime import datetime, timedelta
 from aiogram import types
 from aiogram.utils import executor
 from aiogram.dispatcher.filters.state import StatesGroup, State
@@ -74,6 +76,8 @@ class States(StatesGroup):
     waiting_for_accept = State()
     waiting_for_name = State()
     subscription_edit = State()
+    subscription_choosing = State()
+    subscription_time = State()
 
 
 @dp.errors_handler()
@@ -85,7 +89,7 @@ async def error_handler(update: types.Update, exception: Exception):
 @dp.message_handler(commands=["start"])
 async def start_command(message: types.Message):
     user = await db_controller.create_user(message)
-    await message.reply(f'Привет, {user.name}! Ты зарегистрирован в базе данных.')
+    await message.reply(f'Hello, {user.name}! Now you can use drip car bot.')
     await bot.send_message(message.chat.id, START_MESSAGE, reply_markup=markups.main_menu)
 
 
@@ -112,7 +116,7 @@ async def main_menu_button(message: types.Message, state: FSMContext):
 @dp.message_handler()
 async def input_handler(message: types.Message, state: FSMContext):
     if message.text == markups.BUTTON_RANDOM_TEXT:
-        car = await bot_controller.get_random_car(message)
+        car = await bot_controller.get_random_car()
         await bot_controller.send_car(car, message.chat.id)
         await bot_controller.delete_car(car)
 
@@ -145,6 +149,13 @@ async def input_handler(message: types.Message, state: FSMContext):
         message_found_cars = generate_message_found_cars(found_cars)
         await bot.send_message(message.chat.id, message_found_cars, reply_markup=inline_search_menu)
 
+    elif message.text == markups.BUTTON_SUBSCRIPTION_TEXT:
+        await state.set_state(States.subscription_choosing)
+        if await db_controller.check_subbed(message.from_user.id):
+            await send_sub_message(message)
+        else:
+            await bot.send_message(message.chat.id, "You dont have any subscription. Press subscribe", reply_markup=markups.subscribe_menu)
+
 
     # elif message.text == "bd cars add":
     #     for car_id, car_name in bot_controller.all_cars.items():
@@ -170,6 +181,57 @@ async def search(message: types.Message):
         inline_search_menu = await markups.get_inline_search_menu(found_cars, message.text.lower())
         message_found_cars = generate_message_found_cars(found_cars)
         await bot.send_message(message.chat.id, message_found_cars, reply_markup=inline_search_menu)
+
+
+@dp.message_handler(state=States.subscription_choosing)
+async def subscribe_handler(message: types.Message, state: FSMContext):
+    if not await db_controller.check_subbed(message.from_user.id):
+        await db_controller.add_subscriber(message.from_user.id)
+    if message.text == markups.BUTTON_SUBSCRIBE_TEXT:
+        await send_sub_message(message)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith(markups.CALLBACK_DATA_DAILY_SUB), state=States.subscription_choosing)
+async def sub_daily_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await db_controller.sub_daily_change(callback_query.from_user.id)
+    await update_sub_message(callback_query)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith(markups.CALLBACK_DATA_RANDOM_SUB), state=States.subscription_choosing)
+async def sub_random_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await db_controller.sub_random_change(callback_query.from_user.id)
+    await update_sub_message(callback_query)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith(markups.CALLBACK_DATA_TIME), state=States.subscription_choosing)
+async def time_callback(callback_query: types.CallbackQuery, state: FSMContext):
+    await callback_query.answer()
+    await state.set_state(States.subscription_time)
+    await bot.delete_message(callback_query.from_user.id, callback_query.message.message_id)
+    cur_time = [int(t) for t in datetime.now().time().strftime("%H:%M").split(":")]
+    if cur_time[0] < 6:
+        cur_time[0] = cur_time[0] + 24
+    cur_time[0] = cur_time[0] - 5
+    await bot.send_message(callback_query.from_user.id, "Please send time when bot will send you a message"
+                                                        f"\nTime in UTC±0. Current time: {cur_time[0]}:{cur_time[1]}"
+                                                        "\nFormat:"
+                                                        "\n\nhh:mm\n \n"
+                                                        "Example: 09:05")
+
+
+@dp.message_handler(state=States.subscription_time)
+async def time_handler(message: types.Message, state: FSMContext):
+    pattern = r'^\d{2}:\d{2}$'
+    match = re.match(pattern, message.text)
+    if not match:
+        await message.reply("Incorrect")
+        return
+
+    await db_controller.time_change(message.from_user.id, message.text)
+    await state.set_state(States.subscription_choosing)
+    await send_sub_message(message)
 
 
 @dp.message_handler(state=States.my_cars)
@@ -519,13 +581,28 @@ async def send_voice_version_by_inline_button(callback_query: types.CallbackQuer
 @dp.callback_query_handler(lambda c: True, state="*")
 async def invalid_state(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
-    await bot.send_message(callback_query.from_user.id, ERROR_WRONG_STATE + "\n" + callback_query.data + "\n" + f"{await state.get_state()}")
+    await bot.send_message(callback_query.from_user.id, ERROR_WRONG_STATE + "\n" + f"Callback: {callback_query.data}" + "\n" + f"State: {await state.get_state()}")
 
 
 def generate_message_found_cars(found_cars):
     message_header = "Found car:" if len(found_cars) == 1 else "Found cars:"
     message_found_cars = [f"{i + 1}. {car.name}" for i, car in enumerate(found_cars)]
     return "\n".join([message_header, *message_found_cars])
+
+
+async def send_sub_message(message):
+    await bot.send_message(message.from_user.id, "Here you can edit your subscriptions", reply_markup=markups.subs_menu)
+    inline_sub_menu = await markups.get_inline_subscription_menu(message.from_user.id)
+    await bot.send_message(message.from_user.id, f"Choose subscription: one or both\n\n"
+                                                 f"{markups.BUTTON_DAILY_TEXT.upper()} – for daily new car releases\n"
+                                                 f"{markups.BUTTON_RANDOM_SUB_TEXT.upper()} – for daily random car\n\n"
+                                                 f"Select time when bot will send you a message",
+                           reply_markup=inline_sub_menu)
+
+
+async def update_sub_message(callback: types.CallbackQuery):
+    inline_sub_menu = await markups.get_inline_subscription_menu(callback.from_user.id)
+    await bot.edit_message_reply_markup(callback.from_user.id, callback.message.message_id, reply_markup=inline_sub_menu)
 
 
 async def constructor_send_audio(chat_id, audio_path):
@@ -543,6 +620,35 @@ async def constructor_send_music(chat_id, audio_path):
     await bot.send_audio(chat_id, types.InputFile(audio_path), reply_markup=markups.music_edit_menu)
 
 
+async def scheduled(wait_for):
+    while True:
+        await asyncio.sleep(wait_for)
+        cur_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cur_time = datetime.now().time().strftime("%H:%M").split(":")
+        cur_time = [int(t) for t in cur_time]
+        if cur_time[0] < 6:
+            cur_time[0] = cur_time[0] + 24
+        cur_time[0] = cur_time[0] - 5
+        time = f"{cur_time[0]}:{cur_time[1]}"
+        subs = await db_controller.get_subs_by_time(time)
+        for sub in subs:
+            print(sub.subscriber_tg_id)
+            if sub.subscription_random:
+                car = await bot_controller.get_random_car()
+                await bot.send_message(sub.subscriber_tg_id, "Your random sub")
+                await bot_controller.send_car(car, sub.subscriber_tg_id)
+                await bot_controller.delete_car(car)
+            if sub.subscription_daily:
+                await bot.send_message(sub.subscriber_tg_id, "Your daily sub")
+                cur_date = datetime.strptime(cur_date, "%Y-%m-%d %H:%M:%S")
+                past_day = cur_date - timedelta(hours=24)
+                cars = await db_controller.get_cars_by_time(past_day)
+                for car in cars:
+                    await bot_controller.send_car(car, sub.subscriber_tg_id)
+
+
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.create_task(scheduled(60))
     executor.start_polling(dp, skip_updates=True)
 

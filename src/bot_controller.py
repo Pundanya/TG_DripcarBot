@@ -115,7 +115,7 @@ async def create_video(chat_id, audio_path):
     return result_car_mp4
 
 
-async def get_random_car(message):
+async def get_random_car():
     last_id = await db_controller.get_last_id()
     car = None
     while car is None:

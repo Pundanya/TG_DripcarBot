@@ -1,4 +1,6 @@
+import db_controller
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+
 
 BUTTON_MAIN_MENU_TEXT = "🏠️ Main Menu"
 BUTTON_RANDOM_TEXT = "🎲 Random car"
@@ -16,12 +18,19 @@ BUTTON_DECREASE_VOLUME_TEXT = "🔉 Decrease volume"
 BUTTON_MY_CARS_TEXT = "🏎 My cars"
 BUTTON_MY_STATS_TEXT = "📊 My statistics"
 BUTTON_TOP_TEXT = "⭐️ TOP Cars"
+BUTTON_SUBSCRIPTION_TEXT = "📝 My subscription"
+BUTTON_TIME_TEXT = "🕘 Time"
+BUTTON_SUBSCRIPTIONS_TEXT = "🏁 Subscriptions"
+BUTTON_CANCEL_TEXT = "⛔️ Cancel"
+BUTTON_SUBSCRIBE_TEXT = "🪤 Subscribe"
+BUTTON_RANDOM_SUB_TEXT = "Random"
+BUTTON_DAILY_TEXT = "New releases"
 
 BUTTON_BACK_TEXT = "⬅️ Back"
 BUTTON_CONTINUE_TEXT = "✅ Continue"
 BUTTON_REPEAT_TEXT = "🔄 Repeat"
-BUTTON_ACCEPT_TEXT = "Accept"
-BUTTON_DECLINE_TEXT = "Decline"
+BUTTON_ACCEPT_TEXT = "✅ Accept"
+BUTTON_DECLINE_TEXT = "❌ Decline"
 
 CALLBACK_DATA_BUTTON_CAR = "car: "
 CALLBACK_DATA_BUTTON_ALL_CARS = "car: search: "
@@ -37,6 +46,9 @@ CALLBACK_DATA_MY_CAR = "My car: "
 CALLBACK_DATA_REMOVE = "Remove: "
 CALLBACK_DATA_ACCEPT = "Accept: "
 CALLBACK_DATA_DECLINE = "Decline: "
+CALLBACK_DATA_RANDOM_SUB = "Random sub: "
+CALLBACK_DATA_DAILY_SUB = "Daily sub"
+CALLBACK_DATA_TIME = "Time: "
 
 # --- Buttons ---
 btn_main = KeyboardButton(BUTTON_MAIN_MENU_TEXT)
@@ -50,11 +62,13 @@ btn_search = KeyboardButton(BUTTON_SEARCH_TEXT)
 btn_top = KeyboardButton(BUTTON_TOP_TEXT)
 btn_my_cars = KeyboardButton(BUTTON_MY_CARS_TEXT)
 btn_constructor = KeyboardButton(BUTTON_CONSTRUCTOR_TEXT)
+btn_subscription = KeyboardButton(BUTTON_SUBSCRIPTION_TEXT)
 main_menu.insert(btn_random)
 main_menu.insert(btn_my_cars)
 main_menu.insert(btn_constructor)
 main_menu.insert(btn_search)
 main_menu.insert(btn_top)
+main_menu.insert(btn_subscription)
 
 
 # btn_test = KeyboardButton(BUTTON_TEST_TEXT)
@@ -80,9 +94,34 @@ car_menu.row(btn_back, btn_main)
 # --- Search Menu ---
 search_menu = ReplyKeyboardMarkup(resize_keyboard=True).add(btn_main)
 
+# --- Subscription ---
+# --- Subscription menu ---
+subs_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+subscribe_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+# btn_subscriptions = KeyboardButton(BUTTON_SUBSCRIPTIONS_TEXT)
+# btn_subscription_cancel = KeyboardButton(BUTTON_CANCEL_TEXT)
+btn_subscribe = KeyboardButton(BUTTON_SUBSCRIBE_TEXT)
+subscribe_menu.row(btn_subscribe)
+subscribe_menu.row(btn_main)
+subs_menu.row(btn_main)
+
+
+# --- Inline Subscription choosing ---
+async def get_inline_subscription_menu(tg_id):
+    sub_choosing_menu = InlineKeyboardMarkup()
+    daily, random = await db_controller.check_subscriptions(tg_id)
+    time = await db_controller.get_sub_time(tg_id)
+    btn_sub_random = InlineKeyboardButton("❌ " * (not random) + "✅ " * random + BUTTON_RANDOM_SUB_TEXT, callback_data=CALLBACK_DATA_RANDOM_SUB + str(tg_id))
+    btn_sub_daily = InlineKeyboardButton("❌ " * (not daily) + "✅ " * daily + BUTTON_DAILY_TEXT, callback_data=CALLBACK_DATA_DAILY_SUB + str(tg_id))
+    btn_time = InlineKeyboardButton(f"Message time: {time}", callback_data=CALLBACK_DATA_TIME + str(tg_id))
+    sub_choosing_menu.row(btn_sub_daily, btn_sub_random)
+    sub_choosing_menu.row(btn_time)
+    return sub_choosing_menu
+
 # --- CONSTRUCTOR ---
 # --- Main menu ---
 constructor_menu = ReplyKeyboardMarkup(resize_keyboard=True).add(btn_main)
+
 
 # --- Drip audio Edit ---
 drip_audio_edit_menu = ReplyKeyboardMarkup(resize_keyboard=True)

@@ -28,7 +28,7 @@ class Subscription(Base):
     subscriber_tg_id = Column(String(50), ForeignKey('users.tg_id'))
     subscription_random = Column(Boolean, default=False)
     subscription_daily = Column(Boolean, default=False)
-    subscription_time = Column(String(50))
+    subscription_time = Column(String(50), default="10:00")
     user = relationship('User', back_populates='subscription')
 
 
@@ -52,6 +52,97 @@ class CarStats(Base):
     creation_time = Column(String(50))
     car_id = Column(Integer, ForeignKey('cars.id'))
     car = relationship("Car", back_populates="stats")
+
+
+async def get_cars_by_time(time):
+    async with async_session() as session:
+        response = await session.execute(select(CarStats).filter(CarStats.creation_time > time))
+        cars_stats = response.scalars().all()
+        cars = []
+        for car_stats in cars_stats:
+            response = await session.execute(select(Car).filter(Car.id == car_stats.car_id))
+            car = response.scalars().first()
+            cars.append(car)
+        return cars
+
+async def add_subscriber(tg_id):
+    async with async_session() as session:
+        new_subscriber = Subscription(
+            subscriber_tg_id=tg_id
+        )
+        session.add(new_subscriber)
+        await session.commit()
+
+
+async def check_subscriptions(tg_id):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        if sub is not None:
+            return sub.subscription_daily, sub.subscription_random
+        else:
+            return False, False
+
+
+async def check_subbed(tg_id):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        if sub is None:
+            return False
+        else:
+            return True
+
+
+async def time_change(tg_id, time):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        sub.subscription_time = time
+        await session.merge(sub)
+        await session.commit()
+
+
+async def get_sub_time(tg_id):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        return sub.subscription_time
+
+
+async def sub_daily_change(tg_id):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        sub.subscription_daily = not sub.subscription_daily
+        await session.merge(sub)
+        await session.commit()
+
+
+async def sub_random_change(tg_id):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        sub.subscription_random = not sub.subscription_random
+        await session.merge(sub)
+        await session.commit()
+
+
+async def sub_time_change(tg_id, time):
+    async with async_session() as session:
+        sub = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = sub.scalars().first()
+        sub.subscription_time = time
+        await session.merge(sub)
+        await session.commit()
+
+
+async def get_subs_by_time(time):
+    async with async_session() as session:
+        subs = await session.execute(select(Subscription).filter(Subscription.subscription_time == time))
+        subs = subs.scalars().all()
+        return subs
+
 
 
 async def get_car_by_id(car_id):

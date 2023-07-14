@@ -6,7 +6,6 @@ from sqlalchemy import Column, Integer, String, ForeignKey, select, Boolean, fun
 from sqlalchemy.orm import declarative_base
 
 
-
 engine = create_async_engine('sqlite+aiosqlite:///data/database.db')
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
@@ -65,6 +64,7 @@ async def get_cars_by_time(time):
             cars.append(car)
         return cars
 
+
 async def add_subscriber(tg_id):
     async with async_session() as session:
         new_subscriber = Subscription(
@@ -92,6 +92,30 @@ async def check_subbed(tg_id):
             return False
         else:
             return True
+
+
+async def check_user_created(tg_id):
+    async with async_session() as session:
+        response = await session.execute(select(User).filter(User.tg_id == tg_id))
+        sub = response.scalars().first()
+        if sub is None:
+            return False
+        else:
+            return True
+
+
+async def delete_user(tg_id):
+    async with async_session() as session:
+        response = await session.execute(select(User).filter(User.tg_id == tg_id))
+        user = response.scalars().first()
+        response2 = await session.execute(select(Subscription).filter(Subscription.subscriber_tg_id == tg_id))
+        sub = response2.scalars().first()
+        if user is not None:
+            await session.delete(user)
+            await session.commit()
+        if sub is not None:
+            await session.delete(sub)
+            await session.commit()
 
 
 async def time_change(tg_id, time):
@@ -144,7 +168,6 @@ async def get_subs_by_time(time):
         return subs
 
 
-
 async def get_car_by_id(car_id):
     async with async_session() as session:
         response = await session.execute(select(Car).filter(Car.id == car_id))
@@ -173,6 +196,12 @@ async def get_last_id():
         return car.id
 
 
+async def get_cars_count():
+    async with async_session() as session:
+        response = await session.scalar(select(func.count()).select_from(Car))
+        return response
+
+
 async def get_stats_by_tg_id(tg_id):
     cars = await get_cars_by_tg_id(tg_id)
     likes = 0
@@ -190,7 +219,7 @@ async def get_stats_by_tg_id(tg_id):
 
 async def get_top_10_stats_by_likes():
     async with async_session() as session:
-        response = await session.execute(select(CarStats).order_by(CarStats.likes.desc()).limit(10))
+        response = await session.execute(select(CarStats).options(selectinload(CarStats.car)).order_by(CarStats.likes.desc()).limit(10))
         cars = response.scalars().all()
         return cars
 
@@ -224,7 +253,6 @@ async def create_user(message):
         )
         session.add(user)
         await session.commit()
-        return user
 
 
 async def give_admin_role(user_id):
@@ -234,6 +262,13 @@ async def give_admin_role(user_id):
         user.role = "admin"
         await session.merge(user)
         await session.commit()
+
+
+async def is_admin(user_id):
+    async with async_session() as session:
+        user = await session.execute(select(User).filter(User.tg_id == user_id))
+        user = user.scalars().first()
+        return user.role == "admin"
 
 
 async def init_models():
@@ -276,15 +311,22 @@ async def get_stats(car_id):
         return car.likes, car.dislikes, car.views
 
 
+async def get_all_users():
+    async with async_session() as session:
+        response = await session.execute(select(User))
+        users = response.scalars().all()
+        return users
+
+
 async def delete_car(car_id):
     async with async_session() as session:
-        car = await session.execute(select(Car).filter(Car.id == car_id))
-        car = car.scalars().first()
-        await session.delete(car)
-        await session.commit()
-
-
-# async def get_user_stats():
-#     async with async_session() as session:
-#
-#     pass
+        response1 = await session.execute(select(Car).filter(Car.id == car_id))
+        car = response1.scalars().first()
+        response2 = await session.execute(select(CarStats).filter(CarStats.id == car_id))
+        car_stat = response2.scalars().first()
+        if car is not None:
+            await session.delete(car)
+            await session.commit()
+        if car_stat is not None:
+            await session.delete(car_stat)
+            await session.commit()

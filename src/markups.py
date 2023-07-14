@@ -1,26 +1,27 @@
 import db_controller
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 
-
+BUTTON_START_TEXT = "🚦 Start"
 BUTTON_MAIN_MENU_TEXT = "🏠️ Main Menu"
 BUTTON_RANDOM_TEXT = "🎲 Random car"
 BUTTON_OTHER_TEXT = "📄 Other"
 BUTTON_SEARCH_TEXT = "🔍 Car search"
-BUTTON_CONSTRUCTOR_TEXT = "🚗 Constructor"
-BUTTON_AUDIO_EDIT_TEXT = "🔈Audio"
+BUTTON_CNSTR_TEXT = "🏗 Constructor"
+BUTTON_AUDIO_EDIT_TEXT = "🎶 Audio 1"
 BUTTON_CUT_TEXT = "✂️ Cut"
-BUTTON_MUSIC_EDIT_TEXT = "🎵 Music"
-BUTTON_SAMPLES_TEXT = "🎧 Samples"
+BUTTON_MUSIC_EDIT_TEXT = "🎵 Audio 2"
+BUTTON_SAMPLES_TEXT = "🎧 Template songs"
 BUTTON_RESET_TEXT = "🔄 Reset"
 BUTTON_TEST_TEXT = "MEGATEST"
 BUTTON_INCREASE_VOLUME_TEXT = "🔊 Increase volume"
 BUTTON_DECREASE_VOLUME_TEXT = "🔉 Decrease volume"
-BUTTON_MY_CARS_TEXT = "🏎 My cars"
+BUTTON_NEW_AUDIO_TEXT = "🆕 New audio"
+BUTTON_IMAGE_TEXT = "🖼 Image"
+BUTTON_MY_CARS_TEXT = "🚙 My cars"
 BUTTON_MY_STATS_TEXT = "📊 My statistics"
 BUTTON_TOP_TEXT = "⭐️ TOP Cars"
-BUTTON_SUBSCRIPTION_TEXT = "📝 My subscription"
-BUTTON_TIME_TEXT = "🕘 Time"
-BUTTON_SUBSCRIPTIONS_TEXT = "🏁 Subscriptions"
+BUTTON_SUBSCRIPTIONS_TEXT = "📝 Subscription"
+BUTTON_TIME_TEXT = "🕘 Message time"
 BUTTON_CANCEL_TEXT = "⛔️ Cancel"
 BUTTON_SUBSCRIBE_TEXT = "🪤 Subscribe"
 BUTTON_RANDOM_SUB_TEXT = "Random"
@@ -28,9 +29,9 @@ BUTTON_DAILY_TEXT = "New releases"
 
 BUTTON_BACK_TEXT = "⬅️ Back"
 BUTTON_CONTINUE_TEXT = "✅ Continue"
-BUTTON_REPEAT_TEXT = "🔄 Repeat"
 BUTTON_ACCEPT_TEXT = "✅ Accept"
 BUTTON_DECLINE_TEXT = "❌ Decline"
+BUTTON_REMOVE_TEXT = "🚮 Remove"
 
 CALLBACK_DATA_BUTTON_CAR = "car: "
 CALLBACK_DATA_BUTTON_ALL_CARS = "car: search: "
@@ -61,49 +62,38 @@ btn_other = KeyboardButton(BUTTON_OTHER_TEXT)
 btn_search = KeyboardButton(BUTTON_SEARCH_TEXT)
 btn_top = KeyboardButton(BUTTON_TOP_TEXT)
 btn_my_cars = KeyboardButton(BUTTON_MY_CARS_TEXT)
-btn_constructor = KeyboardButton(BUTTON_CONSTRUCTOR_TEXT)
-btn_subscription = KeyboardButton(BUTTON_SUBSCRIPTION_TEXT)
-main_menu.insert(btn_random)
-main_menu.insert(btn_my_cars)
-main_menu.insert(btn_constructor)
+btn_cnstr = KeyboardButton(BUTTON_CNSTR_TEXT)
+btn_subscription = KeyboardButton(BUTTON_SUBSCRIPTIONS_TEXT)
 main_menu.insert(btn_search)
+main_menu.insert(btn_random)
 main_menu.insert(btn_top)
+main_menu.insert(btn_cnstr)
+main_menu.insert(btn_my_cars)
 main_menu.insert(btn_subscription)
 
+# --- Back main menu ---
+back_main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+back_main_menu.row(btn_back, btn_main)
 
-# btn_test = KeyboardButton(BUTTON_TEST_TEXT)
-# main_menu.add(btn_test)
+# --- Main menu ---
+main_only_menu = ReplyKeyboardMarkup(resize_keyboard=True).insert(btn_main)
 
-# --- Other Menu ---
-# other_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-# btn_my_cars = KeyboardButton(BUTTON_MY_CARS_TEXT)
-# btn_constructor = KeyboardButton(BUTTON_CONSTRUCTOR_TEXT)
-# other_menu.row(btn_constructor, btn_my_cars)
-# other_menu.row(btn_main)
 
 # --- My Cars menu ---
 my_cars_menu = ReplyKeyboardMarkup(resize_keyboard=True)
 btn_statistics = KeyboardButton(BUTTON_MY_STATS_TEXT)
-my_cars_menu.row(btn_statistics, btn_my_cars)
+my_cars_menu.row(btn_statistics)
 my_cars_menu.row(btn_main)
-
-# --- My car ---
-car_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-car_menu.row(btn_back, btn_main)
 
 # --- Search Menu ---
 search_menu = ReplyKeyboardMarkup(resize_keyboard=True).add(btn_main)
 
 # --- Subscription ---
-# --- Subscription menu ---
-subs_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+# --- Subscribe menu ---
 subscribe_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-# btn_subscriptions = KeyboardButton(BUTTON_SUBSCRIPTIONS_TEXT)
-# btn_subscription_cancel = KeyboardButton(BUTTON_CANCEL_TEXT)
 btn_subscribe = KeyboardButton(BUTTON_SUBSCRIBE_TEXT)
 subscribe_menu.row(btn_subscribe)
 subscribe_menu.row(btn_main)
-subs_menu.row(btn_main)
 
 
 # --- Inline Subscription choosing ---
@@ -111,24 +101,25 @@ async def get_inline_subscription_menu(tg_id):
     sub_choosing_menu = InlineKeyboardMarkup()
     daily, random = await db_controller.check_subscriptions(tg_id)
     time = await db_controller.get_sub_time(tg_id)
-    btn_sub_random = InlineKeyboardButton("❌ " * (not random) + "✅ " * random + BUTTON_RANDOM_SUB_TEXT, callback_data=CALLBACK_DATA_RANDOM_SUB + str(tg_id))
-    btn_sub_daily = InlineKeyboardButton("❌ " * (not daily) + "✅ " * daily + BUTTON_DAILY_TEXT, callback_data=CALLBACK_DATA_DAILY_SUB + str(tg_id))
-    btn_time = InlineKeyboardButton(f"Message time: {time}", callback_data=CALLBACK_DATA_TIME + str(tg_id))
+    btn_sub_random = InlineKeyboardButton("❌ " * (not random) + "✅ " * random + BUTTON_RANDOM_SUB_TEXT,
+                                          callback_data=CALLBACK_DATA_RANDOM_SUB + str(tg_id))
+    btn_sub_daily = InlineKeyboardButton("❌ " * (not daily) + "✅ " * daily + BUTTON_DAILY_TEXT,
+                                         callback_data=CALLBACK_DATA_DAILY_SUB + str(tg_id))
+    btn_time = InlineKeyboardButton(f"{BUTTON_TIME_TEXT}(UTC±0): {time}", callback_data=CALLBACK_DATA_TIME + str(tg_id))
     sub_choosing_menu.row(btn_sub_daily, btn_sub_random)
     sub_choosing_menu.row(btn_time)
     return sub_choosing_menu
 
-# --- CONSTRUCTOR ---
-# --- Main menu ---
-constructor_menu = ReplyKeyboardMarkup(resize_keyboard=True).add(btn_main)
 
+# --- CNSTR ---
 
 # --- Drip audio Edit ---
 drip_audio_edit_menu = ReplyKeyboardMarkup(resize_keyboard=True)
 btn_continue = KeyboardButton(BUTTON_CONTINUE_TEXT)
 btn_audio = KeyboardButton(BUTTON_AUDIO_EDIT_TEXT)
 btn_music = KeyboardButton(BUTTON_MUSIC_EDIT_TEXT)
-drip_audio_edit_menu.row(btn_audio, btn_music)
+btn_image = KeyboardButton(BUTTON_IMAGE_TEXT)
+drip_audio_edit_menu.row(btn_audio, btn_music, btn_image)
 drip_audio_edit_menu.row(btn_continue, btn_main)
 
 # --- Audio Edit ---
@@ -136,25 +127,23 @@ audio_edit_menu = ReplyKeyboardMarkup(resize_keyboard=True)
 btn_increase_volume = KeyboardButton(BUTTON_INCREASE_VOLUME_TEXT)
 btn_decrease_volume = KeyboardButton(BUTTON_DECREASE_VOLUME_TEXT)
 btn_cut = KeyboardButton(BUTTON_CUT_TEXT)
+btn_new_audio = KeyboardButton(BUTTON_NEW_AUDIO_TEXT)
 btn_reset = KeyboardButton(BUTTON_RESET_TEXT)
-audio_edit_menu.row(btn_increase_volume, btn_decrease_volume)
-audio_edit_menu.row(btn_cut, btn_reset)
+audio_edit_menu.row(btn_increase_volume, btn_decrease_volume, btn_cut)
+audio_edit_menu.row(btn_reset, btn_new_audio)
 audio_edit_menu.row(btn_back, btn_main)
 
 # --- Music Edit ---
 music_edit_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+btn_remove = KeyboardButton(BUTTON_REMOVE_TEXT)
 btn_samples = KeyboardButton(BUTTON_SAMPLES_TEXT)
-music_edit_menu.row(btn_increase_volume, btn_decrease_volume)
-music_edit_menu.row(btn_cut, btn_samples, btn_reset)
+music_edit_menu.row(btn_increase_volume, btn_decrease_volume, btn_cut)
+music_edit_menu.row(btn_reset, btn_remove)
 music_edit_menu.row(btn_back, btn_main)
 
-
-# --- Inline continue repeat buttons ---
-inline_continue_repeat_buttons = InlineKeyboardMarkup()
-btn_inline_continue = InlineKeyboardButton(BUTTON_CONTINUE_TEXT, callback_data=CALLBACK_DATA_BUTTON_CONTINUE)
-btn_inline_repeat = InlineKeyboardButton(BUTTON_REPEAT_TEXT, callback_data=CALLBACK_DATA_BUTTON_REPEAT)
-inline_continue_repeat_buttons.insert(btn_inline_continue)
-inline_continue_repeat_buttons.insert(btn_inline_repeat)
+music_receive_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+music_receive_menu.row(btn_samples)
+music_receive_menu.row(btn_back, btn_main)
 
 
 # --- Inline search list ---
@@ -171,7 +160,7 @@ async def get_inline_search_menu(found_cars, text):
     return inline_search_menu
 
 
-async def get_inline_my_cars_menu(found_cars, text):
+async def get_inline_my_cars_menu(found_cars):
     inline_search_menu = InlineKeyboardMarkup()
 
     for i, car in enumerate(found_cars):
@@ -187,9 +176,12 @@ def get_inline_voice_menu(car_id):
     btn_voice = InlineKeyboardButton(text="Audio version", callback_data=CALLBACK_DATA_BUTTON_AUDIO + str(car_id))
     inline_voice_menu.add(btn_voice)
 
-    btn_like = InlineKeyboardButton(text="👍", callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_LIKE}{str(car_id)}")
-    btn_dislike = InlineKeyboardButton(text="👎", callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_DISLIKE}{str(car_id)}")
-    btn_views = InlineKeyboardButton(text="👀 Stats", callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_All_STATS}{str(car_id)}")
+    btn_like = InlineKeyboardButton(text="👍",
+                                    callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_LIKE}{str(car_id)}")
+    btn_dislike = InlineKeyboardButton(text="👎",
+                                       callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_DISLIKE}{str(car_id)}")
+    btn_views = InlineKeyboardButton(text="👀 Stats",
+                                     callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_All_STATS}{str(car_id)}")
     inline_voice_menu.add(btn_like, btn_dislike, btn_views)
     return inline_voice_menu
 
@@ -199,7 +191,8 @@ def get_inline_remove_menu(car_id):
     btn_voice = InlineKeyboardButton(text="Audio version", callback_data=CALLBACK_DATA_BUTTON_AUDIO + str(car_id))
     inline_remove_menu.row(btn_voice)
     btn_remove = InlineKeyboardButton(text="❌ Remove", callback_data=CALLBACK_DATA_REMOVE + str(car_id))
-    btn_views = InlineKeyboardButton(text="👀 Stats", callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_All_STATS}{str(car_id)}")
+    btn_views = InlineKeyboardButton(text="👀 Stats",
+                                     callback_data=f"{CALLBACK_DATA_BUTTON_STATS}{CALLBACK_DATA_BUTTON_All_STATS}{str(car_id)}")
     inline_remove_menu.row(btn_remove, btn_views)
     return inline_remove_menu
 
@@ -215,6 +208,7 @@ def get_inline_sure_menu(car_id):
 # --- Inline sample select ---
 def get_inline_select_menu(sample_name):
     inline_select_menu = InlineKeyboardMarkup()
-    btn_inline_select_sample = InlineKeyboardButton(text="✔️ Select", callback_data=f"{CALLBACK_DATA_BUTTON_MUSIC_SAMPLE}{sample_name}")
+    btn_inline_select_sample = InlineKeyboardButton(text="✔️ Select",
+                                                    callback_data=f"{CALLBACK_DATA_BUTTON_MUSIC_SAMPLE}{sample_name}")
     inline_select_menu.add(btn_inline_select_sample)
     return inline_select_menu

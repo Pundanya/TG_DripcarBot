@@ -9,13 +9,21 @@ import os
 import re
 import db_controller
 import s3_client
+import shutil
 
+from datetime import datetime
 from aiogram import types
 
 LOGO_FOLDER_PATH = "data/constructor/images"
 AUDIO_FOLDER_PATH = "data/constructor/audios"
 MUSIC_FOLDER_PATH = "data/constructor/audios/music"
 MUSIC_SAMPLES_PATH = "data/constructor/template/music"
+TEMP_CARS_MP4_PATH = "data/temp/cars_mp4"
+TEMP_CARS_MP3_PATH = "data/temp/cars_mp3"
+CNSTR_RESULT_PATH = "data/constructor/result/car_video"
+
+IS_AUDIO = "audio"
+IS_MUSIC = "music"
 
 MAX_AUDIO_SIZE_MB = 3
 
@@ -57,34 +65,34 @@ async def create_audio(message, audio_type):
     return audio_path + "mp3"
 
 
-async def normalize_audio(message, audio_type):
-    chat_id = message.chat.id
-    audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_{chat_id}.mp3"
-    temp_audio_path = f"{AUDIO_FOLDER_PATH}/temp_normalize_{chat_id}.mp3"
-    if os.path.exists(audio_path):
-        await converter.normalize_audio(audio_path, temp_audio_path)
-        os.remove(audio_path)
-        os.rename(temp_audio_path, audio_path)
-
-
 async def increase_volume(message, audio_type):
     chat_id = message.chat.id
-    audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_{chat_id}.mp3"
-    temp_audio_path = f"{AUDIO_FOLDER_PATH}/temp_increase_{chat_id}.mp3"
+    if audio_type == IS_AUDIO:
+        audio_path = await get_audio_path(message.from_user.id)
+    else:
+        audio_path = await get_music_path(message.from_user.id)
+    mod_audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_modified_{chat_id}.mp3"
+    temp_audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_temp_{chat_id}.mp3"
     if os.path.exists(audio_path):
-        await converter.increase_volume(audio_path, temp_audio_path)
-        os.remove(audio_path)
-        os.rename(temp_audio_path, audio_path)
+        converter.increase_volume(audio_path, temp_audio_path)
+        if os.path.exists(mod_audio_path):
+            os.remove(mod_audio_path)
+        os.rename(temp_audio_path, mod_audio_path)
 
 
 async def decrease_volume(message, audio_type):
     chat_id = message.chat.id
-    audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_{chat_id}.mp3"
-    temp_audio_path = f"{AUDIO_FOLDER_PATH}/temp_decrease_{chat_id}.mp3"
+    if audio_type == IS_AUDIO:
+        audio_path = await get_audio_path(message.from_user.id)
+    else:
+        audio_path = await get_music_path(message.from_user.id)
+    mod_audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_modified_{chat_id}.mp3"
+    temp_audio_path = f"{AUDIO_FOLDER_PATH}/{audio_type}_temp_{chat_id}.mp3"
     if os.path.exists(audio_path):
         await converter.decrease_volume(audio_path, temp_audio_path)
-        os.remove(audio_path)
-        os.rename(temp_audio_path, audio_path)
+        if os.path.exists(mod_audio_path):
+            os.remove(mod_audio_path)
+        os.rename(temp_audio_path, mod_audio_path)
 
 
 async def send_samples(chat_id):
@@ -101,18 +109,97 @@ async def send_samples(chat_id):
         await bot.send_audio(chat_id, sample_file, reply_markup=inline_select_menu)
 
 
-async def audio_mix(callback, input_file_2):
-    input_file_1 = await get_audio_path(callback)
-    output_file = f"{AUDIO_FOLDER_PATH}/drip_{callback.from_user.id}.mp3"
-    await converter.audio_mix(input_file_1, input_file_2, output_file)
+async def audio_mix(chat_id):
+    audio_path = await get_audio_path(chat_id)
+    drip_path = await get_drip_path(chat_id)
+    music_path = await get_music_path(chat_id)
+    if not os.path.exists(music_path):
+        os.remove(drip_path)
+        shutil.copy(audio_path, drip_path)
+    else:
+        converter.audio_mix(audio_path, music_path, drip_path)
 
 
-async def create_video(chat_id, audio_path):
+async def create_video(chat_id):
+    drip_path = await get_drip_path(chat_id)
     logo_path_by_id = f"{LOGO_FOLDER_PATH}/logo_{chat_id}.jpg"
-    video_path = converter.create_car_video_from_logo_and_audio(logo_path_by_id, audio_path, chat_id)
+    video_path = converter.create_car_video_from_logo_and_audio(logo_path_by_id, drip_path, chat_id)
     result_car_mp4 = types.InputFile(video_path)
-
     return result_car_mp4
+
+
+async def reset_audio(message):
+    audio_path_origin = await get_audio_path(message.from_user.id, origin=True)
+    audio_path = await get_audio_path(message.from_user.id)
+    if os.path.exists(audio_path):
+        os.remove(audio_path)
+        shutil.copy(audio_path_origin, audio_path)
+
+
+async def delete_music(chat_id):
+    music_path = f"{AUDIO_FOLDER_PATH}/music_modified_{chat_id}.mp3"
+    music_path2 = f"{AUDIO_FOLDER_PATH}/music_{chat_id}.mp3"
+    deleted = False
+    if os.path.exists(music_path2):
+        os.remove(music_path2)
+        deleted = True
+    if os.path.exists(music_path):
+        os.remove(music_path)
+        deleted = True
+    return deleted
+
+
+async def delete_audio(chat_id):
+    audio_path = f"{AUDIO_FOLDER_PATH}/audio_modified_{chat_id}.mp3"
+    audio_path2 = f"{AUDIO_FOLDER_PATH}/audio_{chat_id}.mp3"
+    deleted = False
+    if os.path.exists(audio_path2):
+        os.remove(audio_path2)
+        deleted = True
+    if os.path.exists(audio_path):
+        os.remove(audio_path)
+        deleted = True
+    return deleted
+
+
+async def check_music(chat_id):
+    music_path = await get_music_path(chat_id)
+    exist = False
+    if os.path.exists(music_path):
+        exist = True
+    return exist
+
+
+async def check_drip(chat_id):
+    drip_path = await get_drip_path(chat_id)
+    exist = False
+    if os.path.exists(drip_path):
+        exist = True
+    return exist
+
+
+async def check_audio(chat_id):
+    audio_path = await get_audio_path(chat_id)
+    exist = False
+    if os.path.exists(audio_path):
+        exist = True
+    return exist
+
+
+async def reset_music(message):
+    music_path_origin = await get_music_path(message.from_user.id, origin=True)
+    music_path = await get_music_path(message.from_user.id)
+    if os.path.exists(music_path):
+        os.remove(music_path)
+        shutil.copy(music_path_origin, music_path)
+
+
+async def sample_callback(callback_query):
+    src_file = f"{MUSIC_SAMPLES_PATH}/{callback_query.data.lstrip(markups.CALLBACK_DATA_BUTTON_MUSIC_SAMPLE)}"
+    audio_path = await get_music_path(callback_query.from_user.id)
+    if os.path.exists(audio_path):
+        os.remove(audio_path)
+    shutil.copy(src_file, audio_path)
 
 
 async def get_random_car():
@@ -124,7 +211,7 @@ async def get_random_car():
     return car
 
 
-async def delete_car(car):
+async def delete_car_files(car):
     car_mp4_path = f"data/temp/cars_mp4/{car.id}.mp4"
     car_mp3_path = f"data/temp/cars_mp3/{car.id}.mp3"
     if os.path.exists(car_mp4_path):
@@ -133,7 +220,12 @@ async def delete_car(car):
         os.remove(car_mp3_path)
 
 
-async def delete_constructor_src(tg_id):
+async def delete_car(car_id):
+    await db_controller.delete_car(car_id)
+    await s3_client.delete_car_mp4_and_mp3(car_id)
+
+
+async def delete_cnstr_src(tg_id):
     all_paths = [
         car_mp4_path := f"data/temp/cars_mp4/car_{tg_id}.mp4",
         car_mp3_path := f"data/temp/cars_mp3/car_{tg_id}.mp3",
@@ -154,16 +246,31 @@ async def delete_constructor_src(tg_id):
             os.remove(path)
 
 
-async def send_my_car(car, chat_id):
-    await bot.send_message(chat_id, f'Here is your car:\n{car.name}')
+def cnstr_src_clear():
+    folders = [
+        "data/constructor/audios",
+        "data/constructor/audios/music",
+        "data/constructor/images",
+        "data/constructor/result/car_images",
+        "data/constructor/result/car_video"
+    ]
+    for folder in folders:
+        file_list = os.listdir(folder)
 
+        for file_name in file_list:
+            file_path = os.path.join(folder, file_name)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+
+
+async def send_my_car(car, chat_id):
     # --- Video note send ---
     await s3_client.download_car_mp4(car.id)
     car_path = f"data/temp/cars_mp4/{car.id}.mp4"
     input_file_mp4 = types.InputFile(car_path)
     inline_remove_menu = markups.get_inline_remove_menu(car.id)
     await bot.send_video_note(chat_id, input_file_mp4, reply_markup=inline_remove_menu)
-    await delete_car(car)
+    await delete_car_files(car)
 
 
 async def start_cut_audio(message: types.Message, audio_type):
@@ -178,62 +285,74 @@ async def end_cut_audio(message: types.Message, audio_type):
     converter.cut_end_mp3(audio_path, output_path, int(message.text))
 
 
-async def get_audio_path(message, origin=False):
-    audio_path = f"{AUDIO_FOLDER_PATH}/audio_modified_{message.from_user.id}.mp3"
+async def is_seconds(time):
+    if time.isdecimal() and int(time) > 0:
+        return True
+    return False
+
+
+async def cnstr_add_car(message):
+    new_car = await db_controller.add_car(message.text, message.from_user.id, "tg_constructor", message.from_user.id)
+    car_name = f"car_{message.from_user.id}"
+    await s3_client.upload_car_mp4(car_name, new_car.id)
+    await delete_cnstr_src(message.from_user.id)
+
+
+async def get_audio_path(chat_id, origin=False):
+    audio_path = f"{AUDIO_FOLDER_PATH}/audio_modified_{chat_id}.mp3"
     if not os.path.exists(audio_path) or origin:
-        audio_path = f"{AUDIO_FOLDER_PATH}/audio_{message.from_user.id}.mp3"
+        audio_path = f"{AUDIO_FOLDER_PATH}/audio_{chat_id}.mp3"
 
     return audio_path
 
 
-async def get_music_path(message, origin=False):
-    audio_path = f"{AUDIO_FOLDER_PATH}/music_modified_{message.from_user.id}.mp3"
+async def get_music_path(chat_id, origin=False):
+    audio_path = f"{AUDIO_FOLDER_PATH}/music_modified_{chat_id}.mp3"
     if not os.path.exists(audio_path) or origin:
-        audio_path = f"{AUDIO_FOLDER_PATH}/music_{message.from_user.id}.mp3"
+        audio_path = f"{AUDIO_FOLDER_PATH}/music_{chat_id}.mp3"
 
     return audio_path
 
 
-async def get_drip_path(message):
-    drip_path = f"{AUDIO_FOLDER_PATH}/drip_{message.from_user.id}.mp3"
-
+async def get_drip_path(chat_id):
+    drip_path = f"{AUDIO_FOLDER_PATH}/drip_{chat_id}.mp3"
+    if not os.path.exists(drip_path):
+        audio_path = f"{AUDIO_FOLDER_PATH}/audio_{chat_id}.mp3"
+        shutil.copy(audio_path, drip_path)
     return drip_path
 
 
+async def time_match_d2(time):
+    pattern = r'^\d{2}:\d{2}$'
+    match = re.match(pattern, time)
+    if match:
+        return True
+    return False
+
+
 async def send_car(car, chat_id):
-
-    await bot.send_message(chat_id, f'Here is your car:\n{car.name}')
-
     # --- Video note send ---
     await s3_client.download_car_mp4(car.id)
-    car_path = f"data/temp/cars_mp4/{car.id}.mp4"
+    car_path = f"{TEMP_CARS_MP4_PATH}/{car.id}.mp4"
     input_file_mp4 = types.InputFile(car_path)
     inline_voice_menu = markups.get_inline_voice_menu(car.id)
     await bot.send_video_note(chat_id, input_file_mp4, reply_markup=inline_voice_menu)
     await db_controller.add_views(car.id)
-    await delete_car(car)
+    await delete_car_files(car)
 
 
-async def send_my_stats(tg_id):
-    likes, dislikes, views = await db_controller.get_stats_by_tg_id(tg_id)
-    await bot.send_message(tg_id, f"YOUR STATS\n"
-                                  f"Likes: {likes}\n"
-                                  f"Dislikes: {dislikes}\n"
-                                  f"Views: {views}")
-
-
-async def get_top_10_likes():
+async def get_top_10_likes_cars():
     cars_stats = await db_controller.get_top_10_stats_by_likes()
     cars = []
     for car_stat in cars_stats:
-        car = await db_controller.get_car_by_id(car_stat.id)
-        cars.append(car)
+        cars.append(car_stat.car)
     return cars
 
 
-async def send_voice_version(car, chat_id):
-    car_mp3_path = f"data/temp/cars_mp3/{car.id}.mp3"
-    car_mp4_path = f"data/temp/cars_mp4/{car.id}.mp4"
+async def send_voice_version(callback_query):
+    car = await db_controller.get_car_by_id(callback_query.data.lstrip(markups.CALLBACK_DATA_BUTTON_AUDIO))
+    car_mp3_path = f"{TEMP_CARS_MP3_PATH}/{car.id}.mp3"
+    car_mp4_path = f"{TEMP_CARS_MP4_PATH}/{car.id}.mp4"
     if not await s3_client.check_mp3(car.id):
         await s3_client.download_car_mp4(car.id)
         converter.convert_car_mp4_to_mp3(car_mp4_path, car_mp3_path)
@@ -242,5 +361,14 @@ async def send_voice_version(car, chat_id):
     # --- Voice send ---
     await s3_client.download_car_mp3(car.id)
     input_file_mp3 = types.InputFile(car_mp3_path)
-    await bot.send_voice(chat_id, input_file_mp3)
-    await delete_car(car)
+    await bot.send_voice(callback_query.from_user.id, input_file_mp3)
+    await delete_car_files(car)
+
+
+def get_current_time():
+    cur_time = [int(t) for t in datetime.now().time().strftime("%H:%M").split(":")]
+    if cur_time[0] < 6:
+        cur_time[0] = cur_time[0] + 24
+    cur_time[0] = cur_time[0] - 5
+    cur_time[1] = f"{cur_time[1]:02}"
+    return f"{cur_time[0]}:{cur_time[1]}"

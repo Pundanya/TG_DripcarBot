@@ -1,8 +1,11 @@
 from aiogram import Bot
 from aiogram.dispatcher import Dispatcher
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from os import environ
 
-bot = Bot(token='5925427456:AAG-USzKmAdv_tCk-8cIVrfxuDPBbeNkgAw', parse_mode="HTML")
+
+token = environ.get("TOKEN")
+bot = Bot(token=token, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 

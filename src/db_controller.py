@@ -1,12 +1,13 @@
 import datetime
 
+from os import environ
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, relationship, selectinload
 from sqlalchemy import Column, Integer, String, ForeignKey, select, Boolean, func
 from sqlalchemy.orm import declarative_base
 
-
-engine = create_async_engine('sqlite+aiosqlite:///data/database.db')
+db_url = environ.get('DB_URL')
+engine = create_async_engine(db_url)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 

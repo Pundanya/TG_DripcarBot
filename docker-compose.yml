@@ -1,0 +1,21 @@
+services:
+  bot:
+    build: .
+    environment:
+      TOKEN: YOUR_TOKEN
+      DB_URL: sqlite+aiosqlite:////root/db/database.db
+      S3_URL: http://minio:9000
+      MINIO_ID: dripcaradmin
+      MINIO_KEY: hxPC7jJgCxBR
+    volumes:
+      - ./data/:/root/db/
+  minio:
+    image: minio/minio
+    hostname: minio
+    volumes:
+      - ./data/cars:/root/data/cars
+    environment:
+      MINIO_ROOT_USER: dripcaradmin
+      MINIO_ROOT_PASSWORD: hxPC7jJgCxBR
+    command: server /root/data/cars --console-address ":9001"
+

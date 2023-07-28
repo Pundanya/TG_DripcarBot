@@ -1,12 +1,17 @@
 import boto3
 import bot_controller
 
+from os import environ
+
 MAIN_BUCKET = "miniocars"
 
+s3_url = environ.get('S3_URL')
+minio_id = environ.get('MINIO_ID')
+minio_key = environ.get('MINIO_KEY')
 s3 = boto3.resource('s3',
-                    endpoint_url='http://127.0.0.1:9000',
-                    aws_access_key_id='minioadmin',
-                    aws_secret_access_key='minioadmin',
+                    endpoint_url=s3_url,
+                    aws_access_key_id=minio_id,
+                    aws_secret_access_key=minio_key,
                     aws_session_token=None,
                     config=boto3.session.Config(signature_version='s3v4'),
                     verify=False

@@ -1,4 +1,3 @@
-import subprocess
 import ffmpeg
 import cv2
 import numpy as np
@@ -7,10 +6,6 @@ from sklearn.cluster import KMeans
 
 CNSTR_RESULT_PATH = "data/constructor/result/car_video"
 
-
-# async def audio_mix(input_file, input_file_2, output_file):
-#     command = ['ffmpeg', '-i', input_file, '-i', input_file_2, "-filter_complex", "amix=inputs=2:duration=longest", "-y", output_file]
-#     subprocess.call(command)
 
 def audio_mix(input_file, input_file_2, output_file):
     input_file = (
@@ -31,10 +26,6 @@ def audio_mix(input_file, input_file_2, output_file):
     )
 
 
-# def convert_car_mp4_to_mp3(input_file, output_file):
-#     command = ['ffmpeg', '-i', input_file, "-y", output_file]
-#     subprocess.call(command)
-
 def convert_car_mp4_to_mp3(input_file, output_file):
     (
         ffmpeg
@@ -43,10 +34,6 @@ def convert_car_mp4_to_mp3(input_file, output_file):
         .overwrite_output()
         .run()
     )
-
-# async def increase_volume(input_file, output_file):
-#     command = ['ffmpeg', '-i', input_file, "-filter:a", "volume=2", "-y", output_file]
-#     subprocess.call(command)
 
 
 def increase_volume(input_file, output_file):
@@ -59,10 +46,6 @@ def increase_volume(input_file, output_file):
     )
 
 
-# async def decrease_volume(input_file, output_file):
-#     command = ['ffmpeg', '-i', input_file, "-filter:a", "volume=0.5", "-y", output_file]
-#     subprocess.call(command)
-
 
 def decrease_volume(input_file, output_file):
     (
@@ -73,12 +56,6 @@ def decrease_volume(input_file, output_file):
         .run_async()
     )
 
-
-# def convert_to_mp3(path, file_extension):
-#     input_file = path + file_extension
-#     output_file = path + "mp3"
-#     command = ['ffmpeg', '-i', input_file, "-y", output_file]
-#     subprocess.call(command)
 
 def convert_to_mp3(path, file_extension):
     input_file = path + file_extension
@@ -93,10 +70,6 @@ def convert_to_mp3(path, file_extension):
     )
 
 
-# def cut_start_mp3(input_file, output_file, start_time):
-#     command = ['ffmpeg', '-i', input_file, "-ss", f"00:{start_time}", "-y", output_file]
-#     subprocess.call(command)
-
 def cut_start_mp3(input_file, output_file, start_time):
     (
         ffmpeg
@@ -106,11 +79,6 @@ def cut_start_mp3(input_file, output_file, start_time):
         .run()
     )
 
-
-# def cut_end_mp3(input_file, output_file, audio_time):
-#     audio_time = check_duration(audio_time)
-#     command = ['ffmpeg', '-i', input_file, "-t", f"00:00:{audio_time}", "-y", output_file]
-#     subprocess.call(command)
 
 def cut_end_mp3(input_file, output_file, audio_time):
     audio_time = check_duration(audio_time)
@@ -159,9 +127,7 @@ def create_car_video_from_logo_and_audio(logo_path, audio_path, chat_id):
     car_image_path = logo_place_on_car_image(logo_path, chat_id)
     output_file_path = f"{CNSTR_RESULT_PATH}/car_{chat_id}.mp4"
 
-    # duration = float(subprocess.check_output(
-    #     ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1',
-    #      audio_path]))
+
     probe = ffmpeg.probe(audio_path)
     audio_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'audio'), None)
     duration = float(audio_stream['duration'])

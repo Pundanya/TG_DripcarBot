@@ -1,7 +1,6 @@
 import bot_tg
 
 import random
-import cars_controller
 import converter
 import markups
 import os.path
@@ -28,7 +27,6 @@ IS_MUSIC = "music"
 MAX_AUDIO_SIZE_MB = 3
 
 bot = bot_tg.get_bot()
-all_cars = cars_controller.get_all_cars()
 
 
 async def download_logo_image(message):
@@ -252,15 +250,20 @@ def cnstr_src_clear():
         "data/constructor/audios/music",
         "data/constructor/images",
         "data/constructor/result/car_images",
-        "data/constructor/result/car_video"
+        "data/constructor/result/car_video",
+        "temp/cars_mp3",
+        "temp/cars_mp4"
     ]
     for folder in folders:
-        file_list = os.listdir(folder)
+        if os.path.exists(folder):
+            file_list = os.listdir(folder)
 
-        for file_name in file_list:
-            file_path = os.path.join(folder, file_name)
-            if os.path.isfile(file_path):
-                os.remove(file_path)
+            for file_name in file_list:
+                file_path = os.path.join(folder, file_name)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+        else:
+            os.mkdir(folder)
 
 
 async def send_my_car(car, chat_id):

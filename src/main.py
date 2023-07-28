@@ -229,6 +229,7 @@ async def my_cars_callback(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data.startswith(markups.CALLBACK_DATA_REMOVE), state=States.my_cars)
 async def remove_callback(callback_query: types.CallbackQuery):
+    callback_query.answer()
     car_id = callback_query.data.lstrip(markups.CALLBACK_DATA_REMOVE)
     inline_sure_menu = markups.get_inline_sure_menu(car_id)
     await bot.send_message(callback_query.from_user.id, SURE_ASK_TEXT, reply_markup=inline_sure_menu)
@@ -337,7 +338,7 @@ async def audio_edit(message: types.Message, state: FSMContext):
 async def music_edit(message: types.Message, state: FSMContext):
     if message.text == markups.BUTTON_CUT_TEXT:
         await state.set_state(States.music_cut_start)
-        await bot.send_message(message.from_user.id, CNSTR_AUDIO_CUT_START_TIME_ASK_TEXT, 
+        await bot.send_message(message.from_user.id, CNSTR_AUDIO_CUT_START_TIME_ASK_TEXT,
                                reply_markup=markups.back_main_menu)
     elif message.text == markups.BUTTON_SAMPLES_TEXT:
         await bot.send_message(message.from_user.id, CNSTR_MUSIC_SAMPLES_TEXT)
@@ -354,7 +355,7 @@ async def music_edit(message: types.Message, state: FSMContext):
         deleted = await bot_controller.delete_music(message.from_user.id)
         await bot.send_message(message.from_user.id, "Music " + " deleted" * deleted + "not found" * (not deleted))
         if deleted:
-            await bot.send_message(message.from_user.id, CNSTR_MUSIC_ASK_TEXT, 
+            await bot.send_message(message.from_user.id, CNSTR_MUSIC_ASK_TEXT,
                                    reply_markup=markups.music_receive_menu)
     elif message.text == markups.BUTTON_BACK_TEXT:
         await state.set_state(States.drip_audio_edit)

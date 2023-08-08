@@ -261,6 +261,8 @@ def cnstr_src_clear():
                 file_path = os.path.join(folder, file_name)
                 if os.path.isfile(file_path):
                     os.remove(file_path)
+        else:
+            os.makedirs(folder, exist_ok=True)
 
 
 async def send_my_car(car, chat_id):

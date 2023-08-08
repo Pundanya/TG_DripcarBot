@@ -10,7 +10,6 @@ import db_controller
 import s3_client
 import shutil
 
-from datetime import datetime
 from aiogram import types
 
 LOGO_FOLDER_PATH = "data/constructor/images"
@@ -251,8 +250,8 @@ def cnstr_src_clear():
         "data/constructor/images",
         "data/constructor/result/car_images",
         "data/constructor/result/car_video",
-        "temp/cars_mp3",
-        "temp/cars_mp4"
+        "data/temp/cars_mp3",
+        "data/temp/cars_mp4"
     ]
     for folder in folders:
         if os.path.exists(folder):
@@ -263,7 +262,7 @@ def cnstr_src_clear():
                 if os.path.isfile(file_path):
                     os.remove(file_path)
         else:
-            os.mkdir(folder)
+            os.makedirs(folder, exist_ok=True)
 
 
 async def send_my_car(car, chat_id):
@@ -366,12 +365,3 @@ async def send_voice_version(callback_query):
     input_file_mp3 = types.InputFile(car_mp3_path)
     await bot.send_voice(callback_query.from_user.id, input_file_mp3)
     await delete_car_files(car)
-
-
-def get_current_time():
-    cur_time = [int(t) for t in datetime.now().time().strftime("%H:%M").split(":")]
-    if cur_time[0] < 6:
-        cur_time[0] = cur_time[0] + 24
-    cur_time[0] = cur_time[0] - 5
-    cur_time[1] = f"{cur_time[1]:02}"
-    return f"{cur_time[0]}:{cur_time[1]}"

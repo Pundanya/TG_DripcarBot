@@ -4,9 +4,9 @@ import markups
 import db_controller
 import asyncio
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from aiogram import types
-from aiogram.utils import executor
+from aiogram.utils import executor, exceptions
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.dispatcher import FSMContext
 
@@ -124,7 +124,7 @@ async def start_command(message: types.Message):
                                                 '\n• Subscribe to the daily random car and latest releases',
                                reply_markup=markups.main_menu)
     else:
-        await bot.send_message(message.from_user.id, "You have already started the bot")
+        await bot.send_message(message.from_user.id, "You have already started the bot", reply_markup=markups.main_menu)
 
 
 @dp.message_handler(lambda c: c.text == markups.BUTTON_MAIN_MENU_TEXT, state="*")
@@ -183,7 +183,7 @@ async def sub_random_callback(callback_query: types.CallbackQuery):
 async def time_callback(callback_query: types.CallbackQuery, state: FSMContext):
     await callback_query.answer()
     await state.set_state(States.subscription_time)
-    cur_time = bot_controller.get_current_time()
+    cur_time = datetime.now(timezone.utc).time().strftime("%H:%M")
     await bot.send_message(callback_query.from_user.id, f"<b>{markups.BUTTON_TIME_TEXT}</b>"
                                                         "\n"
                                                         "\nPlease send the time when you would like the bot to send you a subscription message."
@@ -199,9 +199,12 @@ async def time_handler(message: types.Message, state: FSMContext):
         await state.set_state(States.subscription_choosing)
         await send_sub_message(message)
     elif await bot_controller.time_match_d2(message.text):
-        await db_controller.time_change(message.from_user.id, message.text)
-        await state.set_state(States.subscription_choosing)
-        await send_sub_message(message)
+        if -1 < int(message.text.split(":")[0]) < 24 and -1 < int(message.text.split(":")[1]) < 60:
+            await db_controller.time_change(message.from_user.id, message.text)
+            await state.set_state(States.subscription_choosing)
+            await send_sub_message(message)
+        else:
+            await message.reply(ERROR_INCORRECT)
     else:
         await message.reply(ERROR_INCORRECT)
 
@@ -676,30 +679,32 @@ async def send_my_cars(chat_id):
 async def scheduled(wait_for):
     while True:
         await asyncio.sleep(wait_for)
-        cur_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cur_time = datetime.now().time().strftime("%H:%M").split(":")
-        cur_time = [int(t) for t in cur_time]
-        if cur_time[0] < 6:
-            cur_time[0] = cur_time[0] + 24
-        cur_time[0] = cur_time[0] - 5
-        time = f"{cur_time[0]}:{cur_time[1]}"
-        subs = await db_controller.get_subs_by_time(time)
+        cur_time = datetime.now(timezone.utc).time().strftime("%H:%M")
+        subs = await db_controller.get_subs_by_time(cur_time)
         for sub in subs:
             if sub.subscription_random:
                 car = await bot_controller.get_random_car()
-                await bot.send_message(sub.subscriber_tg_id, "Random subscription:")
-                await send_car(car, sub.subscriber_tg_id)
-                await bot_controller.delete_car_files(car)
-            if sub.subscription_daily:
-                await bot.send_message(sub.subscriber_tg_id, "New releases subscription:")
-                cur_date = datetime.strptime(cur_date, "%Y-%m-%d %H:%M:%S")
-                past_day = cur_date - timedelta(hours=24)
-                cars = await db_controller.get_cars_by_time(past_day)
-                if cars:
-                    for car in cars:
-                        await send_car(car, sub.subscriber_tg_id)
+                try:
+                    await bot.send_message(sub.subscriber_tg_id, "Random subscription:")
+                except exceptions.ChatNotFound:
+                    pass
                 else:
-                    await bot.send_message(sub.subscriber_tg_id, "There are no new releases 🥲")
+                    await send_car(car, sub.subscriber_tg_id)
+                    await bot_controller.delete_car_files(car)
+            if sub.subscription_daily:
+                try:
+                    await bot.send_message(sub.subscriber_tg_id, "New releases subscription:")
+                except exceptions.ChatNotFound:
+                    pass
+                else:
+                    cur_date = datetime.strptime(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "%Y-%m-%d %H:%M:%S")
+                    past_day = cur_date - timedelta(hours=24)
+                    cars = await db_controller.get_cars_by_time(past_day)
+                    if cars:
+                        for car in cars:
+                            await send_car(car, sub.subscriber_tg_id)
+                    else:
+                        await bot.send_message(sub.subscriber_tg_id, "There are no new releases 🥲")
 
 
 if __name__ == '__main__':

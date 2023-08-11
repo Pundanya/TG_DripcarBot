@@ -1,4 +1,5 @@
 import datetime
+import os.path
 
 from os import environ
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -96,6 +97,7 @@ async def check_subbed(tg_id):
 
 
 async def check_user_created(tg_id):
+    await check_bd_is_init()
     async with async_session() as session:
         response = await session.execute(select(User).filter(User.tg_id == tg_id))
         sub = response.scalars().first()
@@ -103,6 +105,11 @@ async def check_user_created(tg_id):
             return False
         else:
             return True
+
+
+async def check_bd_is_init():
+    if not os.path.exists("data/database.db"):
+        await init_models()
 
 
 async def delete_user(tg_id):

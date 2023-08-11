@@ -77,6 +77,8 @@ ERROR = "Error"
 ERROR_WRONG_STATE = "Button not work. Wrong state"
 ERROR_INCORRECT = "Incorrect"
 
+ADMIN_PASSWORD = environ.get('ADMIN_PASSWORD')
+
 dp = bot_tg.get_dp()
 bot = bot_tg.get_bot()
 
@@ -546,21 +548,21 @@ async def main_menu_process(message, state):
                 await bot.send_message(message.chat.id, NO_SUBSCRIPTION_TEXT,
                                        reply_markup=markups.subscribe_menu)
 
-        elif await db_controller.is_admin(message.from_user.id):
+        elif await db_controller.is_admin(message.from_user.id) or ADMIN_PASSWORD in message.text:
             if "delete car" in message.text.lower():
                 car_id = message.text.lower().split("delete car ")[1]
                 await bot_controller.delete_car(car_id)
-            elif "init" in message.text.lower():
-                await db_controller.init_models()
-                await bot.send_message(message.chat.id, SUCCESS_MESSAGE + " db init", reply_markup=markups.main_menu)
             elif "delete user" in message.text.lower():
                 user_id = message.text.lower().split("delete user ")[1]
                 await db_controller.delete_user(user_id)
-            elif "bot send all" in message.text.lower():
-                text = message.text.lower().split("bot send all ")[1]
+            elif "send all" in message.text.lower():
+                text = message.text.lower().split("send all ")[1]
                 users = await db_controller.get_all_users()
                 for user in users:
-                    await bot.send_message(user.tg_id, text)
+                    try:
+                        await bot.send_message(user.tg_id, text)
+                    except exceptions.ChatNotFound:
+                        pass
             elif "give admin" in message.text.lower():
                 tg_id = message.text.split("give admin ")[1]
                 await db_controller.give_admin_role(tg_id)
